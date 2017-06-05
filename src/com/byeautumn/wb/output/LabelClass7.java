@@ -33,7 +33,7 @@ public class LabelClass7 implements ILabelClass {
     }
 
     @Override
-    public int getLabel(double percentage) {
+    public double getLabel(double percentage) {
         int label = 0;
         if(percentage <= -0.01)
             return label;
@@ -53,8 +53,8 @@ public class LabelClass7 implements ILabelClass {
         return Integer.MIN_VALUE;
     }
 
-    public static boolean isValid(int label)
+    public boolean isValid(double label)
     {
-        return label >= 0 && label < 7;
+        return label >= 0.0 && label < 7.0;
     }
 }

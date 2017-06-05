@@ -199,7 +199,8 @@ public class WDCandlestickChart extends JPanel
 		{
 			FixedMillisecond period = new FixedMillisecond(elem.getDateValue());
 			OHLCItem item = new OHLCItem(period, elem.getOpenValue(), elem.getHighValue(), elem.getLowValue(), elem.getCloseValue());
-			series.add(item);
+			//TODO : this is temporarily commented since it got a compile error...
+//			series.add(item);
 		}
 		
 		return series;

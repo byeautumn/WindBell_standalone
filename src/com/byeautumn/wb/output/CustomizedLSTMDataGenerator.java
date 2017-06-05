@@ -128,7 +128,7 @@ public class CustomizedLSTMDataGenerator {
         pieceCount = 0;
         for(OHLCSequentialTrainingData trainData : normalizedTrainDataList)
         {
-            trainData.generateTrainingRegressionCSVFiles(outputDirName, "" + pieceCount + ".csv", 28);
+            trainData.generateTrainingCSVFiles(outputDirName, "" + pieceCount + ".csv", 28, true);
             ++pieceCount;
         }
         System.out.println("Total number of csv regression / label files generated: " + pieceCount);

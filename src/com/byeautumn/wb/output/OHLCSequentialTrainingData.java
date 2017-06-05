@@ -2,7 +2,11 @@ package com.byeautumn.wb.output;
 
 import com.byeautumn.wb.data.OHLCElement;
 import com.byeautumn.wb.data.OHLCElementTable;
+import com.byeautumn.wb.data.OHLCUtils;
+
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -15,11 +19,14 @@ import java.util.*;
  * Created by qiangao on 5/17/2017.
  */
 public class OHLCSequentialTrainingData {
+	private static final Logger log = LoggerFactory.getLogger(OHLCSequentialTrainingData.class);
     private static final double MILLION_FACTOR = 0.000001;
     private List<SequentialFlatRecord> flatData;
     private ILabelClass labelClass = new LabelClass7();
 
     private OHLCSequentialTrainingData() {}
+    
+    //NOTE: this constructor assumes the first OHLCElementTable is the "main" table and the others will horizontally union with it.
     public OHLCSequentialTrainingData(List<OHLCElementTable> ohlcElementTables)
     {
         if(null == ohlcElementTables || ohlcElementTables.size() < 1)
@@ -107,6 +114,37 @@ public class OHLCSequentialTrainingData {
         return OHLCSequentialTrainingData.createInstance(normalizedRecordList);
     }
 
+    private SequentialFlatRecord buildFlatRecord(OHLCElement currElem, OHLCElement nextElem, boolean isForRegression)
+    {
+        //Assume each OHLCElement has 5 values.
+        int featureSize = 5;
+        double[] flatValues = new double[featureSize];
+
+        flatValues[0] = currElem.getOpenValue();
+        flatValues[1] = currElem.getHighValue();
+        flatValues[2] = currElem.getLowValue();
+        flatValues[3] = currElem.getCloseValue();
+        flatValues[4] = currElem.getVolumeValue();
+
+        double label = Double.MIN_VALUE;
+        if(null != nextElem)
+        {
+            double percentage = (0 == currElem.getCloseValue()) ? 0 : nextElem.getCloseValue() /currElem.getCloseValue();
+            if(isForRegression)
+            	label = percentage;
+            else
+            {
+            	label = labelClass.getLabel(percentage - 1.0);
+            	if(!labelClass.isValid(label))
+        			log.error("The generated label is NOT valid: " + label);
+            }
+        }
+        Date date = currElem.getDateValue();
+        SequentialFlatRecord flatRecord = new SequentialFlatRecord(new Date(date.getTime()), flatValues, label, isForRegression);
+        
+        return flatRecord;
+    }
+    
     private void buildFlatData(OHLCElementTable table, boolean isForRegression, Date trancatedDate)
     {
         if(null == table || table.size() < 1)
@@ -118,40 +156,29 @@ public class OHLCSequentialTrainingData {
         if(null == flatData)
             flatData = new ArrayList<>(table.size());
 
-        //Assume each OHLCElement has 5 values.
-        int featureSize = 5;
-        List<OHLCElement> mainElemList = table.getOHCLElementsSortedByDate();
+        List<OHLCElement> elemList = table.getOHCLElementsSortedByDate();
 
-        ILabelClass labelClass = new LabelClass7();
-        for (int timeSeriesIdx = 0; timeSeriesIdx < mainElemList.size(); ++timeSeriesIdx) {
-            OHLCElement elem = mainElemList.get(timeSeriesIdx);
+        for (int timeSeriesIdx = 0; timeSeriesIdx < elemList.size(); ++timeSeriesIdx) {
+            OHLCElement elem = elemList.get(timeSeriesIdx);
             Date date = elem.getDateValue();
             if(null != trancatedDate && trancatedDate.compareTo(date) > 0)
                 continue;
-
-            double[] flatValues = new double[featureSize];
-
-            flatValues[0] = elem.getOpenValue();
-            flatValues[1] = elem.getHighValue();
-            flatValues[2] = elem.getLowValue();
-            flatValues[3] = elem.getCloseValue();
-            flatValues[4] = elem.getVolumeValue();
-
-            double label = Double.MIN_VALUE;
-            if(timeSeriesIdx < mainElemList.size() - 1)
-            {
-                OHLCElement nextElem = mainElemList.get(timeSeriesIdx + 1);
-                double percentage = (0 == elem.getCloseValue()) ? 0.0 : (nextElem.getCloseValue() - elem.getCloseValue()) /elem.getCloseValue();
-                label = isForRegression ? percentage * 100 : labelClass.getLabel(percentage);
-            }
-
-            SequentialFlatRecord flatRecord = new SequentialFlatRecord(new Date(date.getTime()), flatValues, label, isForRegression);
+            
+            OHLCElement nextElem = null;
+            if(timeSeriesIdx < elemList.size() - 1)
+            	nextElem = elemList.get(timeSeriesIdx + 1);
+            
+            SequentialFlatRecord flatRecord = buildFlatRecord(elem, nextElem, isForRegression);
             flatData.add(flatRecord);
         }
-//        System.out.println("flat data size: " + flatData.size());
     }
 
     private void buildFlatData(List<OHLCElementTable> tableList)
+    {
+    	buildFlatData(tableList, false);
+    }
+    
+    private void buildFlatData(List<OHLCElementTable> tableList, boolean isForRegression)
     {
         if(null == tableList || tableList.isEmpty())
         {
@@ -199,26 +226,32 @@ public class OHLCSequentialTrainingData {
             flatValues[3] = elem.getCloseValue();
             flatValues[4] = elem.getVolumeValue();
 
-            int label = Integer.MIN_VALUE;
+            double label = Double.MIN_VALUE;
             if(timeSeriesIdx < mainElemList.size() - 1)
             {
                 OHLCElement nextElem = mainElemList.get(timeSeriesIdx + 1);
-                double percentage = (0 == elem.getCloseValue()) ? 0 : (nextElem.getCloseValue() - elem.getCloseValue()) /elem.getCloseValue();
-                label = labelClass.getLabel(percentage);
+                double percentage = (0 == elem.getCloseValue()) ? 0 : nextElem.getCloseValue() /elem.getCloseValue();
+                if(isForRegression)
+                	label = percentage;
+                else
+                {
+                	label = labelClass.getLabel(percentage - 1.0);
+                	if(!labelClass.isValid(label))
+            			log.error("The generated label is NOT valid: " + label);
+                }
             }
 
             SequentialFlatRecord flatRecord = new SequentialFlatRecord(new Date(date.getTime()), flatValues, label);
             flatData.add(flatRecord);
         }
-//        System.out.println("flat data size: " + flatData.size());
     }
 
     public SequentialFlatRecord getLastLabeledRecord()
     {
-        for(int idx = this.flatData.size() - 1; idx >=0; --idx)
+        for(int idx = this.flatData.size() - 1; idx >= 0; --idx)
         {
             SequentialFlatRecord record = this.flatData.get(idx);
-            if(LabelClass7.isValid((int)record.getLabel()))
+            if(labelClass.isValid(record.getLabel()))
                 return record;
         }
         return null;
@@ -242,7 +275,7 @@ public class OHLCSequentialTrainingData {
         {
             SequentialFlatRecord flatRecord = flatData.get(idx);
             if(bExcludeUnlabeledRecord) {
-                if (!LabelClass7.isValid((int)flatRecord.getLabel()))
+                if (!labelClass.isValid(flatRecord.getLabel()))
                     continue;
             }
 
@@ -259,19 +292,33 @@ public class OHLCSequentialTrainingData {
         generateCSVFile(outputFileName, false);
     }
 
-    public void generateTrainingRegressionCSVFiles(String outputBaseDir, String fileName, int outputTimeStepLength)
+    public void generateTrainingCSVFiles(String outputBaseDir, String fileName, int outputTimeStepLength, boolean isForRegression)
     {
         int numFeatures = this.flatData.get(0).getValuesSize();
-        //Generate regression label files...
+        //Generate label files...
         for(int featureIdx = 0; featureIdx < numFeatures; ++featureIdx) {
             StringBuffer sb = new StringBuffer();
             for (int idx = outputTimeStepLength; idx < flatData.size() - 1; ++idx) {
                 SequentialFlatRecord currRecord = flatData.get(idx);
-                SequentialFlatRecord nextRecord = flatData.get(idx + 1);
-                double currRegression = currRecord.getValueAt(featureIdx);
-                double nextRegression = nextRecord.getValueAt(featureIdx);
-                double percentage = 0.0 == currRegression ? 0.0 : nextRegression / currRegression;
-                sb.append(percentage).append("\n");
+//                SequentialFlatRecord nextRecord = flatData.get(idx + 1);
+//                double currRegression = currRecord.getValueAt(featureIdx);
+//                double nextRegression = nextRecord.getValueAt(featureIdx);
+//                double percentage = 0.0 == currRegression ? 0.0 : nextRegression / currRegression;
+//                if(isForRegression)
+//                	sb.append(percentage).append("\n");
+//                else
+//                {
+//                	int label = ()labelClass.getLabel(percentage - 1.0);
+//                	
+//                	sb.append(label).append("\n");
+//                }
+            	if(isForRegression)
+            		sb.append(currRecord.getClass()).append("\n");
+	            else
+	            {
+	            	int label = (int)currRecord.getLabel();	            	
+	            	sb.append(label).append("\n");
+	            }
             }
             String outputLabelFileName = Paths.get(outputBaseDir, "" + featureIdx, fileName).toString();
             generateTextFile(outputLabelFileName, sb.toString());
@@ -283,7 +330,7 @@ public class OHLCSequentialTrainingData {
         {
             //Skip the last record since it has NO label...
             if(count >= flatData.size() - 1)
-                continue;
+                break;
 
             sbFeatures.append(record.printValuesWithDateInfoAsCSV()).append("\n");
             ++count;
@@ -291,7 +338,7 @@ public class OHLCSequentialTrainingData {
         String outputFeaturesFileName = Paths.get(outputBaseDir, fileName).toString();
         generateTextFile(outputFeaturesFileName, sbFeatures.toString());
     }
-
+    
     public void generateTextFile(String fileName, String content)
     {
         File outputFile = new File(fileName);

@@ -4,6 +4,7 @@ import com.byeautumn.wb.data.CSVFilenameFilter;
 import com.byeautumn.wb.data.OHLCElementTable;
 import com.byeautumn.wb.data.OHLCUtils;
 import com.byeautumn.wb.output.CustomizedLSTMDataGenerator;
+import com.byeautumn.wb.output.ILabelClass;
 import com.byeautumn.wb.output.OHLCSequentialTrainingData;
 import org.apache.commons.io.FileUtils;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
@@ -219,8 +220,11 @@ public class DLUtils {
         int count = 0;
         for(OHLCElementTable ohlcTable : ohlcTableList)
         {
-            OHLCSequentialTrainingData data = new OHLCSequentialTrainingData(ohlcTable, true, trancatedDate);
+            OHLCSequentialTrainingData data = new OHLCSequentialTrainingData(ohlcTable, isForRegression, trancatedDate);
+            if(count == 0)
+            	log.warn(data.printSelfAsCSV());
             List<OHLCSequentialTrainingData> pieceList = data.split(numSequencePerGeneratedFile);
+            log.warn(pieceList.get(0).printSelfAsCSV());
             for(OHLCSequentialTrainingData piece : pieceList)
             {
                 OHLCSequentialTrainingData normalizedPiece = piece.normalizeByFirstRecord();
@@ -237,7 +241,7 @@ public class DLUtils {
         int pieceCount = 0;
         for(OHLCSequentialTrainingData trainData : dataList)
         {
-            trainData.generateTrainingRegressionCSVFiles(outputDirName, "" + pieceCount + ".csv", numSequenceBeforeLabeling);
+            trainData.generateTrainingCSVFiles(outputDirName, "" + pieceCount + ".csv", numSequenceBeforeLabeling, isForRegression);
             ++pieceCount;
         }
         log.info("Total number of csv regression / label files generated: " + pieceCount);
@@ -345,6 +349,32 @@ public class DLUtils {
         saveNetwork(net, modelFile, true);
     }
 
+    public static ILabelClass getLabelClassInstance(String labelClassName)
+    {
+    	return getClassInstance(labelClassName);
+    }
+    
+    @SuppressWarnings("unchecked")
+	public static <T> T getClassInstance(String className)
+    {
+    	T t = null;
+    	Class<T> c = null;
+		try {
+			c = (Class<T>) Class.forName(className);
+			t = c.newInstance();
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InstantiationException ie) {
+			// TODO Auto-generated catch block
+			ie.printStackTrace();
+		} catch (IllegalAccessException iae) {
+			// TODO Auto-generated catch block
+			iae.printStackTrace();
+		}
+    	return t;
+    }
+    
     public static void main( String[] args ) throws Exception {
         RunnerConfigFileReader configReader = new RunnerConfigFileReader("../../WindBell/WindBell/src/com/byeautumn/wb/dl/RegressionLSTMRunner.properties");
         generateMultiSymbolTrainingInputData(configReader);

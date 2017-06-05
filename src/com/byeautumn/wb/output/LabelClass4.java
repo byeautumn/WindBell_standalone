@@ -30,15 +30,20 @@ public class LabelClass4 implements ILabelClass {
     }
 
     @Override
-    public int getLabel(double percentage) {
-        int label = 0;
+    public double getLabel(double percentage) {
+        double label = 0.0;
         if(percentage <= -0.002)
             return label;
         else if(percentage > -0.002 && percentage <= 0.0)
-            return label + 1;
+            return label + 1.0;
         else if(percentage > 0.0 && percentage <= 0.02)
-            return label + 2;
+            return label + 2.0;
         else //(percentage > 0.002)
-            return label + 3;
+            return label + 3.0;
     }
+
+	@Override
+	public boolean isValid(double label) {
+		return label >= 0.0 && label < 4.0;
+	}
 }

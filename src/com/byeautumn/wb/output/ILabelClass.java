@@ -8,5 +8,6 @@ import java.util.List;
 public interface ILabelClass {
     int getNumLabels();
     List<String> getLabels();
-    int getLabel(double percentage);
+    double getLabel(double percentage);
+    boolean isValid(double label);
 }

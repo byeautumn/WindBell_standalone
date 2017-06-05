@@ -27,6 +27,8 @@ import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization;
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerStandardize;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -45,61 +47,12 @@ import java.util.Random;
  * Created by qiangao on 5/24/2017.
  */
 public class CustomizedLSTMRunner {
-
-    private int detectNumFeaturesFromTrainingData(RunnerConfigFileReader configReader)
-    {
-        String trainInputDirName = configReader.getProperty("trainInputDirName");
-        File trainInputDir = new File(trainInputDirName);
-        //Get the feature number by reading the one of the training csv file.
-        String[] inputCSVFiles = trainInputDir.list(new CSVFilenameFilter());
-        if(null == inputCSVFiles || inputCSVFiles.length < 1)
-        {
-            System.err.println("There is NO training input csv files in " + trainInputDir);
-            return -1;
-        }
-        String csvSampleFileName = null;
-        for(String csv : inputCSVFiles)
-        {
-            if(csv.endsWith(".csv"))
-                csvSampleFileName = csv;
-        }
-
-        if(null == csvSampleFileName)
-        {
-            System.err.println("There is NO training input csv files in " + trainInputDir);
-            return -1;
-        }
-
-        List<String> sampleLines = null;
-        try {
-            sampleLines = FileUtils.readLines(new File(trainInputDir, csvSampleFileName));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        if(null == sampleLines || sampleLines.isEmpty())
-        {
-            System.err.println("The sample csv file is empty:  " + csvSampleFileName);
-            return -1;
-        }
-        //Pick the middle line...
-        String sampleLine = sampleLines.get(sampleLines.size() / 2);
-        String[] sampleValues = sampleLine.split(",");
-        if(null == sampleValues || sampleValues.length < 2)
-        {
-            System.err.println("The sample line format of the sample csv file seems invalid:  " + sampleLine);
-            return -1;
-        }
-
-        int numFeatures = sampleValues.length - 1;
-        System.out.println("The detected numFeatures is: " + numFeatures);
-
-        return numFeatures;
-    }
-
+	private static final Logger log = LoggerFactory.getLogger(CustomizedLSTMRunner.class);
+	
     public MultiLayerNetwork buildNetworkModel(RunnerConfigFileReader configReader)
     {
         int numLabelClasses = Integer.parseInt(configReader.getProperty("numLabelClasses"));
-        int numFeatures = detectNumFeaturesFromTrainingData(configReader);
+        int numFeatures = DLUtils.detectNumFeaturesFromTrainingData(configReader);
         int neuralSizeMultiplyer = Integer.parseInt(configReader.getProperty("neuralSizeMultiplyer"));
         int numHiddenLayers = Integer.parseInt(configReader.getProperty("numHiddenLayers"));
         int widthHiddenLayers = numFeatures * neuralSizeMultiplyer;
@@ -144,56 +97,6 @@ public class CustomizedLSTMRunner {
         return net;
     }
 
-    public MultiLayerNetwork loadNetworkModel(RunnerConfigFileReader configReader)
-    {
-        String networkSaveLocation = configReader.getProperty("networkSaveLocation");
-        File networkSaveDir = new File(networkSaveLocation);
-        if(!networkSaveDir.exists())
-        {
-            System.err.println("The given network model save directory doesn't exist.");
-            return null;
-        }
-
-        String[] savedModelFileNames = networkSaveDir.list(new FilenameFilter() {
-            @Override
-            public boolean accept(File dir, String name) {
-                if(name.endsWith(".zip"))
-                    return true;
-                return false;
-            }
-        });
-
-        if(savedModelFileNames.length < 1)
-        {
-            System.err.println("There is NO valid network model exist under directory: " + networkSaveLocation);
-            return null;
-        }
-
-        //Default is to load the last one (latest one hopefully).
-        String networkModelFileName = savedModelFileNames[savedModelFileNames.length - 1];
-
-        File modelFile = new File(networkSaveLocation, networkModelFileName);
-        if(!modelFile.exists())
-        {
-            System.err.println("The saved network model file doesn't exist: " + modelFile.getAbsolutePath());
-            return null;
-        }
-
-        //Load the model
-        MultiLayerNetwork net = null;
-        try {
-            net = ModelSerializer.restoreMultiLayerNetwork(modelFile);
-        } catch (IOException ioe)
-        {
-            System.err.println(ioe.getStackTrace());
-            return null;
-        }
-
-        System.out.println("The saved network model has been successfully loaded: " + modelFile.getAbsolutePath());
-
-        return net;
-    }
-
     public void generateTrainingInputData(RunnerConfigFileReader configReader)
     {
         //Generate Training Data...
@@ -226,73 +129,6 @@ public class CustomizedLSTMRunner {
 
             int numSequencePerGeneratedFile = Integer.parseInt(configReader.getProperty("numSequencePerGeneratedFile"));
             BasicLSTMDataGenerator.generateLSTMTrainingData2(symbol, sourceFileNames, numSequencePerGeneratedFile);
-        }
-    }
-
-    private void shuffuleTrainingData(File trainDataDir)
-    {
-        if(null == trainDataDir)
-        {
-            System.err.println("The given training data directory is null.");
-            return;
-        }
-
-        if(!trainDataDir.exists())
-        {
-            System.err.println("The training data directory doesn't exist: " + trainDataDir.getAbsolutePath());
-            return;
-        }
-
-        String[] dataFileNames = trainDataDir.list(new CSVFilenameFilter());
-        if(null == dataFileNames || dataFileNames.length < 1)
-        {
-            System.err.println("There is NO any training data in directory " + trainDataDir.getAbsolutePath());
-            return;
-        }
-
-        Random random = new Random();
-        int randomIdx = random.nextInt(dataFileNames.length);
-        for(int idx = 0; idx < dataFileNames.length / 2; ++idx)
-        {
-            String fileName1 = dataFileNames[idx];
-            String fileName2 = dataFileNames[randomIdx];
-            if(fileName1.equals(fileName2))
-                continue;
-
-            swapFilesContent(trainDataDir, fileName1, fileName2);
-            randomIdx = random.nextInt(dataFileNames.length);
-        }
-
-    }
-
-    private void swapFilesContent(File dir, String fileName1, String fileName2)
-    {
-        if(null == dir)
-        {
-            System.err.println("The given training data directory is null.");
-            return;
-        }
-
-        if(!dir.exists())
-        {
-            System.err.println("The training data directory doesn't exist: " + dir.getAbsolutePath());
-            return;
-        }
-
-        File file1 = new File(dir.getAbsolutePath(), fileName1);
-        File file2 = new File(dir.getAbsolutePath(), fileName2);
-        if(!file1.exists() || !file2.exists())
-        {
-            System.err.println("The files to be swapped don't exist: " + fileName1 + " or " + fileName2);
-            return;
-        }
-        try {
-            String temp = FileUtils.readFileToString(file1);
-            FileUtils.writeStringToFile(file1, FileUtils.readFileToString(file2));
-            FileUtils.writeStringToFile(file2, temp);
-        } catch (IOException ioe)
-        {
-            ioe.printStackTrace();
         }
     }
 
@@ -338,7 +174,7 @@ public class CustomizedLSTMRunner {
             System.out.println("++++++++++++++++++++ Start Cross Validation iteration " + idxCV + " +++++++++++++++++++++++++++++");
             if(idxCV > 0)
             {
-                shuffuleTrainingData(rawDataDir);
+                DLUtils.shuffuleTrainingData(rawDataDir);
             }
 
             try {
@@ -354,7 +190,7 @@ public class CustomizedLSTMRunner {
                 return;
             }
 
-            int numFeatures = detectNumFeaturesFromTrainingData(configReader);
+            int numFeatures = DLUtils.detectNumFeaturesFromTrainingData(configReader);
             int numLabelClasses = Integer.parseInt(configReader.getProperty("numLabelClasses"));
             DataSetIterator trainData = new SequenceRecordReaderDataSetIterator(trainFeatures, miniBatchSize, numLabelClasses, numFeatures, false);
             DataSetIterator testData = new SequenceRecordReaderDataSetIterator(testFeatures, miniBatchSize, numLabelClasses, numFeatures, false);
@@ -393,7 +229,7 @@ public class CustomizedLSTMRunner {
 
     public void predict(RunnerConfigFileReader configReader, MultiLayerNetwork net)
     {
-        int numFeatures = detectNumFeaturesFromTrainingData(configReader);
+        int numFeatures = DLUtils.detectNumFeaturesFromTrainingData(configReader);
         int numSequencePerGeneratedFile = Integer.parseInt(configReader.getProperty("numSequencePerGeneratedFile"));
         int numLabelClasses = Integer.parseInt((configReader.getProperty("numLabelClasses")));
 

@@ -90,7 +90,7 @@ public class SequentialFlatRecord {
         for(double value : values)
             sb.append(value).append(",");
 
-        sb.append(this.label);
+        sb.append(isForRegression ? this.label : (int)this.label);
 
         return sb.toString();
     }
@@ -107,7 +107,7 @@ public class SequentialFlatRecord {
         calendar.setTime(date);
         sb.append(calendar.get(Calendar.DAY_OF_WEEK)).append(",");
         sb.append(calendar.get(Calendar.MONTH)).append(",");
-        sb.append(this.label);
+        sb.append(isForRegression ? this.label : (int)this.label);
 
         return sb.toString();
     }

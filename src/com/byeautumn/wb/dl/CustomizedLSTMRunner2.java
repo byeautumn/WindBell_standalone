@@ -49,60 +49,11 @@ import java.util.Random;
  */
 public class CustomizedLSTMRunner2 {
     private static final Logger log = LoggerFactory.getLogger(CustomizedLSTMRunner2.class);
-    private int detectNumFeaturesFromTrainingData(RunnerConfigFileReader configReader)
-    {
-        String trainInputDirName = configReader.getProperty("trainInputDirName");
-        File trainInputDir = new File(trainInputDirName);
-        //Get the feature number by reading the one of the training csv file.
-        String[] inputCSVFiles = trainInputDir.list(new CSVFilenameFilter());
-        if(null == inputCSVFiles || inputCSVFiles.length < 1)
-        {
-            log.error("There is NO training input csv files in " + trainInputDir);
-            return -1;
-        }
-        String csvSampleFileName = null;
-        for(String csv : inputCSVFiles)
-        {
-            if(csv.endsWith(".csv"))
-                csvSampleFileName = csv;
-        }
-
-        if(null == csvSampleFileName)
-        {
-            log.error("There is NO training input csv files in " + trainInputDir);
-            return -1;
-        }
-
-        List<String> sampleLines = null;
-        try {
-            sampleLines = FileUtils.readLines(new File(trainInputDir, csvSampleFileName));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        if(null == sampleLines || sampleLines.isEmpty())
-        {
-            log.error("The sample csv file is empty:  " + csvSampleFileName);
-            return -1;
-        }
-        //Pick the middle line...
-        String sampleLine = sampleLines.get(sampleLines.size() / 2);
-        String[] sampleValues = sampleLine.split(",");
-        if(null == sampleValues || sampleValues.length < 2)
-        {
-            log.error("The sample line format of the sample csv file seems invalid:  " + sampleLine);
-            return -1;
-        }
-
-        int numFeatures = sampleValues.length - 1;
-        log.info("The detected numFeatures is: " + numFeatures);
-
-        return numFeatures;
-    }
 
     public MultiLayerNetwork buildNetworkModel(RunnerConfigFileReader configReader)
     {
         int numLabelClasses = Integer.parseInt(configReader.getProperty("numLabelClasses"));
-        int numFeatures = detectNumFeaturesFromTrainingData(configReader);
+        int numFeatures = DLUtils.detectNumFeaturesFromTrainingData(configReader);
         int neuralSizeMultiplyer = Integer.parseInt(configReader.getProperty("neuralSizeMultiplyer"));
         int numHiddenLayers = Integer.parseInt(configReader.getProperty("numHiddenLayers"));
         int widthHiddenLayers = numFeatures * neuralSizeMultiplyer;
@@ -259,7 +210,7 @@ public class CustomizedLSTMRunner2 {
 
     public void predict(RunnerConfigFileReader configReader, MultiLayerNetwork net)
     {
-        int numFeatures = detectNumFeaturesFromTrainingData(configReader);
+        int numFeatures = DLUtils.detectNumFeaturesFromTrainingData(configReader);
         int numSequencePerGeneratedFile = Integer.parseInt(configReader.getProperty("numSequencePerGeneratedFile"));
         int numLabelClasses = Integer.parseInt((configReader.getProperty("numLabelClasses")));
 
