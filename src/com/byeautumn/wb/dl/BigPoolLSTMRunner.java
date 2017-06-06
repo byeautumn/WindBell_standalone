@@ -368,7 +368,7 @@ public class BigPoolLSTMRunner {
     }
     
     public static void main( String[] args ) throws Exception {
-        RunnerConfigFileReader configReader = new RunnerConfigFileReader("../WindBell/src/com/byeautumn/wb/dl/BigPoolLSTMRunner.properties");
+        RunnerConfigFileReader configReader = new RunnerConfigFileReader("src/com/byeautumn/wb/dl/BigPoolLSTMRunner.properties");
         log.info(configReader.printSelf());
         
         
