@@ -25,6 +25,7 @@ import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.dataset.api.DataSet;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization;
 import org.nd4j.linalg.dataset.api.preprocessor.NormalizerStandardize;
@@ -232,17 +233,30 @@ public class BigPoolLSTMRunner {
             String str2 = "Test set evaluation at epoch %d: Precision = %.2f, Recall = %.2f";
             for (int i = 0; i < numEpochs; i++) {
                 net.fit(trainData);
-
-                //Evaluate on the test set:
-                Evaluation evaluation = net.evaluate(testData);
-                log.info(String.format(str, i, evaluation.accuracy(), evaluation.f1()));
-                log.info(String.format(str2, i, evaluation.precision(), evaluation.recall()));
-
-
-                testData.reset();
-                trainData.reset();
             } //Epoch Iterations.
 
+            log.info("\nEvaluate model....\n");
+            Evaluation eval = new Evaluation(labelClass.getNumLabels());
+            int iterCount = 0;
+            while(testData.hasNext()){
+            	log.info("++++++++++++++++++++ Start Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
+                DataSet t = testData.next();
+                INDArray features = t.getFeatures();
+                INDArray labels = t.getLabels();
+                INDArray predicted = net.output(features,false);
+                log.info("++++++++++++++++++++ predicted ++++++++++++++++++++++\n");
+                log.info(DataUtils.printINDArray(predicted));
+                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
+                log.info(DataUtils.printINDArray(labels));
+                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
+                eval.eval(labels, predicted);
+                log.info(String.format(str, iterCount, eval.accuracy(), eval.f1()));
+                log.info(String.format(str2, iterCount, eval.precision(), eval.recall()));
+                ++iterCount;
+                log.info("++++++++++++++++++++ End Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
+            }
+            testData.reset();
+            trainData.reset();
             log.info("++++++++++++++++++++ End Cross Validation iteration " + idxCV + " +++++++++++++++++++++++++++++\n");
 
         } //Cross Validation Iterations.
