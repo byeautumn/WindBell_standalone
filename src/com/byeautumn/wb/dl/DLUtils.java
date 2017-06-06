@@ -5,6 +5,7 @@ import com.byeautumn.wb.data.OHLCElementTable;
 import com.byeautumn.wb.data.OHLCUtils;
 import com.byeautumn.wb.output.CustomizedLSTMDataGenerator;
 import com.byeautumn.wb.output.ILabelClass;
+import com.byeautumn.wb.output.LabelClass7;
 import com.byeautumn.wb.output.OHLCSequentialTrainingData;
 import org.apache.commons.io.FileUtils;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
@@ -245,6 +246,7 @@ public class DLUtils {
             ++pieceCount;
         }
         log.info("Total number of csv regression / label files generated: " + pieceCount);
+        log.info(DataUtils.printArray(DataUtils.analyzeDataDistribution(dataList, new LabelClass7())));
     }
 
     public static void cleanDirectory(File dir)

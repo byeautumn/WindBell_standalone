@@ -1,10 +1,16 @@
 package com.byeautumn.wb.dl;
 
+import com.byeautumn.wb.data.CSVFilenameFilter;
 import com.byeautumn.wb.output.ILabelClass;
 import com.byeautumn.wb.output.OHLCSequentialTrainingData;
 import com.byeautumn.wb.output.SequentialFlatRecord;
+
+import org.apache.commons.io.FileUtils;
+import org.jfree.util.Log;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -25,6 +31,41 @@ public class DataUtils {
         return ret;
     }
 
+    public static double[] analyzeDataDistribution(String labelDataDir, ILabelClass labelClass)
+    {
+        double[] ret = new double[labelClass.getNumLabels()];
+
+        File dir = new File(labelDataDir);
+        //Assuming all are csv files...
+        String[] labelFileNames = dir.list(new CSVFilenameFilter());
+        for(String labelFileName : labelFileNames)
+        {
+        	File labelFile = new File(labelDataDir, labelFileName);
+        	List<String> lines = null;
+			try {
+				lines = FileUtils.readLines(labelFile);
+			} catch (IOException e) {
+				e.printStackTrace();
+				return ret;
+			}
+			
+        	for(String line : lines)
+        	{
+        		String[] cols = line.split(",");
+        		double label = Double.parseDouble(cols[cols.length - 1]);
+        		if(!labelClass.isValid(label))
+        		{
+        			Log.warn("The label " + label + " is NOT valid in file " + labelFile.getAbsolutePath() + ". Skipped!");
+        			continue;
+        		}
+        		
+                ret[(int)label] += 1;
+        	}
+        }
+
+        return ret;
+    }
+    
     public static String printArray(double[] arr)
     {
         StringBuffer sb = new StringBuffer();

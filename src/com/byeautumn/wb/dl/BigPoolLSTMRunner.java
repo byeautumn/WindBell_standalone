@@ -4,6 +4,7 @@ import com.byeautumn.wb.data.CSVFilenameFilter;
 import com.byeautumn.wb.data.OHLCUtils;
 import com.byeautumn.wb.output.BasicLSTMDataGenerator;
 import com.byeautumn.wb.output.ILabelClass;
+import com.byeautumn.wb.output.LabelClass7;
 
 import org.apache.commons.io.FileUtils;
 import org.datavec.api.records.reader.SequenceRecordReader;
@@ -360,16 +361,24 @@ public class BigPoolLSTMRunner {
         return retList;
     }
 
+    public String printDataDistribution(RunnerConfigFileReader configReader)
+    {
+    	String dataDir = configReader.getProperty("trainInputDirName") + "/" + 3;
+    	return "\nData Distribution: \n" + DataUtils.printArray(DataUtils.analyzeDataDistribution(dataDir, this.labelClass));
+    }
+    
     public static void main( String[] args ) throws Exception {
         RunnerConfigFileReader configReader = new RunnerConfigFileReader("../WindBell/src/com/byeautumn/wb/dl/BigPoolLSTMRunner.properties");
         log.info(configReader.printSelf());
-
-//        DLUtils.generateMultiSymbolTrainingInputData(configReader);
         
+        
+//        DLUtils.generateMultiSymbolTrainingInputData(configReader);
+
         BigPoolLSTMRunner runner = new BigPoolLSTMRunner(configReader);
+        log.info(runner.printDataDistribution(configReader));
 //        runner.generateTrainingInputData();
-        MultiLayerNetwork net = runner.buildNetworkModel();
-        runner.trainAndValidate(net);
+//        MultiLayerNetwork net = runner.buildNetworkModel();
+//        runner.trainAndValidate(net);
 //        runner.predict(net);
     }
 }
