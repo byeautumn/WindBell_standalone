@@ -79,7 +79,7 @@ public class BigPoolLSTMRunner {
         builder.seed(123)    //Random number generator seed for improved repeatability. Optional.
                 .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
                 .weightInit(WeightInit.XAVIER)
-                .updater(Updater.NESTEROVS).momentum(0.6)
+                .updater(Updater.NESTEROVS).momentum(0.9)
                 .learningRate(0.003)
                 .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)  //Not always required, but helps with this data set
                 .gradientNormalizationThreshold(0.5);
@@ -392,7 +392,7 @@ public class BigPoolLSTMRunner {
         log.info(runner.printDataDistribution(configReader));
 //        runner.generateTrainingInputData();
 //        MultiLayerNetwork net = runner.buildNetworkModel();
-//        runner.trainAndValidate(net);
+        runner.trainAndValidate(null);
 //        runner.predict(net);
     }
 }
