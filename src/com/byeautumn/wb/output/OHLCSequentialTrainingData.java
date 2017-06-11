@@ -282,7 +282,10 @@ public class OHLCSequentialTrainingData {
             if(bExcludeUnlabeledRecord)
                 sb.append(flatRecord.printValuesAndLabelWithDateInfoAsCSV());
             else
-                sb.append(flatRecord.printValuesWithDateInfoAsCSV()); //In this case don't include label in the file at all.
+            {
+//                sb.append(flatRecord.printValuesWithDateInfoAsCSV()); //In this case don't include label in the file at all.
+                sb.append(flatRecord.printValuesAsCSV(0, 3));
+            }
             sb.append("\n");
         }
         return sb.toString();
@@ -332,7 +335,8 @@ public class OHLCSequentialTrainingData {
             if(count >= flatData.size() - 1)
                 break;
 
-            sbFeatures.append(record.printValuesWithDateInfoAsCSV()).append("\n");
+//            sbFeatures.append(record.printValuesWithDateInfoAsCSV()).append("\n");
+            sbFeatures.append(record.printValuesAsCSV(3, 3)).append("\n");
             ++count;
         }
         String outputFeaturesFileName = Paths.get(outputBaseDir, fileName).toString();

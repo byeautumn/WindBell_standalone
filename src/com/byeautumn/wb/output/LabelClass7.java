@@ -35,19 +35,19 @@ public class LabelClass7 implements ILabelClass {
     @Override
     public double getLabel(double percentage) {
         int label = 0;
-        if(percentage <= -0.01)
+        if(percentage <= -0.035)
             return label;
-        else if(percentage > -0.01 && percentage <= -0.004)
+        else if(percentage > -0.035 && percentage <= -0.015)
             return label + 1;
-        else if(percentage > -0.004 && percentage <= -0.0012)
+        else if(percentage > -0.015 && percentage <= -0.003)
             return label + 2;
-        else if(percentage > -0.0012 && percentage <= 0.0012)
+        else if(percentage > -0.003 && percentage <= 0.003)
             return label + 3;
-        else if(percentage > 0.0012 && percentage <= 0.004)
+        else if(percentage > 0.003 && percentage <= 0.015)
             return label + 4;
-        else if(percentage > 0.004 && percentage <= 0.01)
+        else if(percentage > 0.015 && percentage <= 0.035)
             return label + 5;
-        else if(percentage > 0.01)
+        else if(percentage > 0.035)
             return label + 6;
 
         return Integer.MIN_VALUE;

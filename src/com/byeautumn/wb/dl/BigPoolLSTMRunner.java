@@ -10,6 +10,7 @@ import org.apache.commons.io.FileUtils;
 import org.datavec.api.records.reader.SequenceRecordReader;
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader;
 import org.datavec.api.split.NumberedFileInputSplit;
+import org.deeplearning4j.api.storage.StatsStorage;
 import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator;
 import org.deeplearning4j.eval.Evaluation;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
@@ -22,6 +23,9 @@ import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.ui.api.UIServer;
+import org.deeplearning4j.ui.stats.StatsListener;
+import org.deeplearning4j.ui.storage.InMemoryStatsStorage;
 import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
@@ -74,13 +78,13 @@ public class BigPoolLSTMRunner {
         int neuralSizeMultiplyer = Integer.parseInt(configReader.getProperty("neuralSizeMultiplyer"));
         int numHiddenLayers = Integer.parseInt(configReader.getProperty("numHiddenLayers"));
         int widthHiddenLayers = numFeatures * neuralSizeMultiplyer;
-
+        
         NeuralNetConfiguration.Builder builder = new NeuralNetConfiguration.Builder();
         builder.seed(123)    //Random number generator seed for improved repeatability. Optional.
                 .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
                 .weightInit(WeightInit.XAVIER)
                 .updater(Updater.NESTEROVS).momentum(0.9)
-                .learningRate(0.003)
+                .learningRate(0.005)
                 .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)  //Not always required, but helps with this data set
                 .gradientNormalizationThreshold(0.5);
 
@@ -88,8 +92,8 @@ public class BigPoolLSTMRunner {
 
         for (int i = 0; i < numHiddenLayers; i++) {
             GravesLSTM.Builder hiddenLayerBuilder = new GravesLSTM.Builder();
-            hiddenLayerBuilder.nIn(i == 0 ? numFeatures : widthHiddenLayers);
-            hiddenLayerBuilder.nOut(widthHiddenLayers);
+            hiddenLayerBuilder.nIn(i == 0 ? numFeatures : widthHiddenLayers * (numHiddenLayers - i + 1));
+            hiddenLayerBuilder.nOut(widthHiddenLayers * (numHiddenLayers - i));
             hiddenLayerBuilder.activation(Activation.TANH);
             listBuilder.layer(i, hiddenLayerBuilder.build());
         }
@@ -107,7 +111,23 @@ public class BigPoolLSTMRunner {
         MultiLayerNetwork net = new MultiLayerNetwork(conf);
         net.init();
         net.setListeners(new ScoreIterationListener(50));
-
+        
+        boolean bEnableUIMonitor = Boolean.parseBoolean(configReader.getProperty("enableUIMonitor"));
+        if(bEnableUIMonitor)
+        {
+        	//Initialize the user interface backend
+	        UIServer uiServer = UIServer.getInstance();
+	
+	        //Configure where the network information (gradients, score vs. time etc) is to be stored. Here: store in memory.
+	        StatsStorage statsStorage = new InMemoryStatsStorage();         //Alternative: new FileStatsStorage(File), for saving and loading later
+	        
+	        //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
+	        uiServer.attach(statsStorage);
+	
+	        //Then add the StatsListener to collect this information from the network, as it trains
+	        net.setListeners(new StatsListener(statsStorage));
+        }
+        
         log.info("Number of parameters in network: " + net.numParams());
         for( int i=0; i<net.getnLayers(); i++ ){
             log.info("Layer " + i + " nParams = " + net.getLayer(i).numParams());
@@ -157,6 +177,8 @@ public class BigPoolLSTMRunner {
         if(bForceRegenerateTrainingData) {
         	DLUtils.generateMultiSymbolTrainingInputData(configReader);
         }
+        
+        log.info(printDataDistribution(configReader));
         
         int numCrossValidations = Integer.parseInt(configReader.getProperty("numCrossValidations"));
         int numEpochs = Integer.parseInt(configReader.getProperty("numEpochs"));
@@ -225,38 +247,55 @@ public class BigPoolLSTMRunner {
                 ie.printStackTrace();
                 return;
             }
+            
+            //Normalize the training data
+            DataNormalization normalizer = new NormalizerStandardize();
+            normalizer.fit(trainData);              //Collect training data statistics
+            trainData.reset();
 
             //Use previously collected statistics to normalize on-the-fly. Each DataSet returned by 'trainData' iterator will be normalized
-//            trainData.setPreProcessor(normalizer);
-//            testData.setPreProcessor(normalizer);   //Note that we are using the exact same normalization process as the training data
+            trainData.setPreProcessor(normalizer);
+            testData.setPreProcessor(normalizer);   //Note that we are using the exact same normalization process as the training data
+            
             String str = "Test set evaluation at epoch %d: Accuracy = %.2f, F1 = %.2f";
             String str2 = "Test set evaluation at epoch %d: Precision = %.2f, Recall = %.2f";
             for (int i = 0; i < numEpochs; i++) {
                 net.fit(trainData);
+                
+              //Evaluate on the test set:
+                Evaluation evaluation = net.evaluate(testData);
+                
+                log.info(String.format(str, i, evaluation.accuracy(), evaluation.f1()));
+                log.info(String.format(str2, i, evaluation.precision(), evaluation.recall()));
+                
+                log.info(evaluation.stats());
+                testData.reset();
+                trainData.reset();
             } //Epoch Iterations.
 
-            log.info("\nEvaluate model....\n");
-            Evaluation eval = new Evaluation(labelClass.getNumLabels());
-            int iterCount = 0;
-            while(testData.hasNext()){
-            	log.info("++++++++++++++++++++ Start Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
-                DataSet t = testData.next();
-                INDArray features = t.getFeatures();
-                INDArray labels = t.getLabels();
-                INDArray predicted = net.output(features,false);
-                log.info("++++++++++++++++++++ predicted ++++++++++++++++++++++\n");
-                log.info(DataUtils.printINDArray(predicted));
-                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
-                log.info(DataUtils.printINDArray(labels));
-                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
-                eval.eval(labels, predicted);
-                log.info(String.format(str, iterCount, eval.accuracy(), eval.f1()));
-                log.info(String.format(str2, iterCount, eval.precision(), eval.recall()));
-                ++iterCount;
-                log.info("++++++++++++++++++++ End Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
-            }
-            testData.reset();
-            trainData.reset();
+//            log.info("\nEvaluate model....\n");
+//            Evaluation eval = new Evaluation(labelClass.getNumLabels());
+//            int iterCount = 0;
+//            while(testData.hasNext()){
+//            	log.info("++++++++++++++++++++ Start Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
+//                DataSet t = testData.next();
+//                INDArray features = t.getFeatures();
+//                INDArray labels = t.getLabels();
+//                INDArray predicted = net.output(features,false);
+//                log.info("++++++++++++++++++++ predicted ++++++++++++++++++++++\n");
+//                log.info(DataUtils.printINDArray(predicted.tensorAlongDimension(55, 0, 1)));
+//                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
+//                log.info(DataUtils.printINDArray(labels.tensorAlongDimension(55, 0, 1)));
+//                log.info("++++++++++++++++++++ labeled ++++++++++++++++++++++\n");
+//                eval.eval(labels.tensorAlongDimension(55, 0, 1), predicted.tensorAlongDimension(55, 0, 1));
+//                log.info(String.format(str, iterCount, eval.accuracy(), eval.f1()));
+//                log.info(String.format(str2, iterCount, eval.precision(), eval.recall()));
+//                log.info(eval.stats());                
+//                log.info("++++++++++++++++++++ End Test Iteration #" + iterCount + " ++++++++++++++++++++++\n");
+//                ++iterCount;
+//            }
+//            testData.reset();
+//            trainData.reset();
             log.info("++++++++++++++++++++ End Cross Validation iteration " + idxCV + " +++++++++++++++++++++++++++++\n");
 
         } //Cross Validation Iterations.
@@ -382,6 +421,15 @@ public class BigPoolLSTMRunner {
     }
     
     public static void main( String[] args ) throws Exception {
+//    	//Initialize the user interface backend
+//        UIServer uiServer = UIServer.getInstance();
+//
+//        //Configure where the network information (gradients, score vs. time etc) is to be stored. Here: store in memory.
+//        StatsStorage statsStorage = new InMemoryStatsStorage();         //Alternative: new FileStatsStorage(File), for saving and loading later
+//        
+//        //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
+//        uiServer.attach(statsStorage);
+        
         RunnerConfigFileReader configReader = new RunnerConfigFileReader("src/com/byeautumn/wb/dl/BigPoolLSTMRunner.properties");
         log.info(configReader.printSelf());
         
@@ -389,7 +437,7 @@ public class BigPoolLSTMRunner {
 //        DLUtils.generateMultiSymbolTrainingInputData(configReader);
 
         BigPoolLSTMRunner runner = new BigPoolLSTMRunner(configReader);
-        log.info(runner.printDataDistribution(configReader));
+        
 //        runner.generateTrainingInputData();
 //        MultiLayerNetwork net = runner.buildNetworkModel();
         runner.trainAndValidate(null);

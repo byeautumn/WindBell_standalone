@@ -75,6 +75,8 @@ public class SequentialFlatRecord {
         for(int idx = 0; idx < values.length; ++idx) {
 
             nValues[idx] = (0 == bValues[idx]) ? 0 : this.values[idx] / bValues[idx] ;
+            //Try to time 100 for percentage value.
+            nValues[idx] *= 100;
         }
 
         Date copyDate = new Date(this.date.getTime());
@@ -117,9 +119,8 @@ public class SequentialFlatRecord {
         if(null == values || values.length < 1)
             return "";
 
-        StringBuffer sb = new StringBuffer();
-        for(double value : values)
-            sb.append(value).append(",");
+        StringBuffer sb = new StringBuffer(printValuesAsCSV());
+
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(date);
         sb.append(calendar.get(Calendar.DAY_OF_WEEK)).append(",");
@@ -128,6 +129,23 @@ public class SequentialFlatRecord {
         return sb.toString();
     }
 
+    public String printValuesAsCSV()
+    {
+        return printValuesAsCSV(0, values.length - 3);
+    }
+    
+    public String printValuesAsCSV(int sIdx, int eIdx)
+    {
+        if(null == values || values.length < 1)
+            return "";
+
+        StringBuffer sb = new StringBuffer();
+        for(int idx = sIdx; idx <= eIdx; ++idx)
+        	sb.append(values[idx]).append(",");
+
+        return sb.toString();
+    }
+    
     public String printSelf()
     {
         if(null == date || null == values || values.length < 1)

@@ -114,7 +114,7 @@ public class DLUtils {
         //Pick the middle line...
         String sampleLine = sampleLines.get(sampleLines.size() / 2);
         String[] sampleValues = sampleLine.split(",");
-        if(null == sampleValues || sampleValues.length < 2)
+        if(null == sampleValues || (isFeatureAndLabelInSameFile ? sampleValues.length < 2 : sampleValues.length < 1))
         {
             log.error("The sample line format of the sample csv file seems invalid:  " + sampleLine);
             return -1;
@@ -198,12 +198,18 @@ public class DLUtils {
 
         List<String> sourceFileNames = getRawFileNamesFromSourceDir(configReader);
         List<OHLCElementTable> ohlcTableList = new ArrayList<>(sourceFileNames.size());
+
+        boolean bGenerateSmallPoolData = Boolean.parseBoolean(configReader.getProperty("generateSmallPoolData"));
         for(String sourceFileName : sourceFileNames)
         {
             OHLCElementTable ohlcTable = OHLCUtils.readOHLCDataSourceFile(sourceFileName);
             if(null == ohlcTable)
                 continue;
+
             ohlcTableList.add(ohlcTable);
+            
+            if(bGenerateSmallPoolData)
+            	break;
         }
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
@@ -215,6 +221,7 @@ public class DLUtils {
             pe.printStackTrace();
         }
         int numSequencePerGeneratedFile = Integer.parseInt(configReader.getProperty("numSequencePerGeneratedFile"));
+        log.info("The numSequencePerGeneratedFile: " + numSequencePerGeneratedFile);
         int numSequenceBeforeLabeling = Integer.parseInt(configReader.getProperty("numSequenceBeforeLabeling"));
         boolean isForRegression = Boolean.parseBoolean(configReader.getProperty("isForRegression"));
         List<OHLCSequentialTrainingData>  dataList = new ArrayList<>();
@@ -222,18 +229,18 @@ public class DLUtils {
         for(OHLCElementTable ohlcTable : ohlcTableList)
         {
             OHLCSequentialTrainingData data = new OHLCSequentialTrainingData(ohlcTable, isForRegression, trancatedDate);
-            if(count == 0)
-            	log.warn(data.printSelfAsCSV());
+//            if(count == 0)
+//            	log.warn(data.printSelfAsCSV());
             List<OHLCSequentialTrainingData> pieceList = data.split(numSequencePerGeneratedFile);
-            log.warn(pieceList.get(0).printSelfAsCSV());
+//            log.warn(pieceList.get(0).printSelfAsCSV());
             for(OHLCSequentialTrainingData piece : pieceList)
             {
                 OHLCSequentialTrainingData normalizedPiece = piece.normalizeByFirstRecord();
                 dataList.add(normalizedPiece);
             }
 
-            if(count == 0)
-                log.info(dataList.get(0).getLastLabeledRecord().printSelf());
+//            if(count == 0)
+//                log.info(dataList.get(0).getLastLabeledRecord().printSelf());
             ++count;
         }
         log.info("dataList size: " + dataList.size());
