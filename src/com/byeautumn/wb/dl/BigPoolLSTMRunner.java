@@ -23,8 +23,10 @@ import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.spark.impl.multilayer.SparkDl4jMultiLayer;
 import org.deeplearning4j.ui.api.UIServer;
 import org.deeplearning4j.ui.stats.StatsListener;
+import org.deeplearning4j.ui.storage.FileStatsStorage;
 import org.deeplearning4j.ui.storage.InMemoryStatsStorage;
 import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.activations.Activation;
@@ -47,6 +49,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -81,7 +84,7 @@ public class BigPoolLSTMRunner {
         
         NeuralNetConfiguration.Builder builder = new NeuralNetConfiguration.Builder();
         builder.seed(123)    //Random number generator seed for improved repeatability. Optional.
-                .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
+                .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(10)
                 .weightInit(WeightInit.XAVIER)
                 .updater(Updater.NESTEROVS).momentum(0.9)
                 .learningRate(0.005)
@@ -217,10 +220,10 @@ public class BigPoolLSTMRunner {
         for(int idxCV = 0; idxCV < numCrossValidations; ++idxCV)
         {
             log.info("++++++++++++++++++++ Start Cross Validation iteration " + idxCV + " +++++++++++++++++++++++++++++\n");
-            if(idxCV > 0)
-            {
-                DLUtils.shuffuleTrainingData(rawDataDir);
-            }
+////            if(idxCV > 0)
+//            {
+//                DLUtils.shuffuleTrainingData(rawDataDir);
+//            }
 
             try {
                 
@@ -263,7 +266,7 @@ public class BigPoolLSTMRunner {
                 net.fit(trainData);
                 
               //Evaluate on the test set:
-                Evaluation evaluation = net.evaluate(testData);
+                Evaluation evaluation = net.evaluate(trainData);
                 
                 log.info(String.format(str, i, evaluation.accuracy(), evaluation.f1()));
                 log.info(String.format(str2, i, evaluation.precision(), evaluation.recall()));
