@@ -343,7 +343,7 @@ public class OHLCSequentialTrainingData {
         generateTextFile(outputFeaturesFileName, sbFeatures.toString());
     }
     
-    public void generateTextFile(String fileName, String content)
+    public static void generateTextFile(String fileName, String content)
     {
         File outputFile = new File(fileName);
         if (outputFile.exists()) {

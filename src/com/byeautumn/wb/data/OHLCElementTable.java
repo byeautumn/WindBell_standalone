@@ -5,8 +5,19 @@ import java.util.Map.Entry;
 
 public class OHLCElementTable
 {
+	private String symbol;
 	private TreeMap<Date, OHLCElement> elementMap;
 	private TreeMap<Date, OHLCElement> normalizedElementMap;
+	
+	public String getSymbol()
+	{
+		return this.symbol;
+	}
+	
+	public void setSymbol(String symbol)
+	{
+		this.symbol = symbol;
+	}
 	
 	public void addOHLCElement(OHLCElement elem)
 	{
@@ -67,6 +78,24 @@ public class OHLCElementTable
 		return retList;
 	}
 
+	public List<OHLCElement> getOHCLElementsSortedByDateAfter(Date date)
+	{
+		if(null == elementMap)
+			return null;
+		
+		if(null == date)
+			return this.getOHCLElementsSortedByDate();
+		
+		List<OHLCElement> retList = new ArrayList<>(elementMap.size());
+		for(OHLCElement elem : elementMap.values())
+		{
+			if(elem.getDateValue().after(date))
+				retList.add(elem);
+		}
+		
+		return retList;
+	}
+	
 //	public void normalizeDataByYearRange()
 //	{
 //		List<OHLCElement> elemList = getOHCLElementsSortedByDate();
